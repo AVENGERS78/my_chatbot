@@ -17,7 +17,7 @@ app.add_middleware(
 
 # Read API key from Render Environment Variables
 client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
+    api_key=os.getenv("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")
 )
 
 SYSTEM_PROMPT = """
