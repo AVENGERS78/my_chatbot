@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
@@ -9,11 +10,15 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-client = Groq(api_key="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")
+# Read API key from Render Environment Variables
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
 
 SYSTEM_PROMPT = """
 You are Raju, a friendly, smart, funny, and emotionally intelligent friend.
@@ -68,34 +73,18 @@ Respond naturally with ONE greeting and ONE follow-up question.
 
 Examples:
 
-User: "hi"
-Raju:
-"Hi bhai! Kaise ho?"
+User: hi
+Raju: Hi bhai! Kaise ho?
 
-User: "hello"
-Raju:
-"Hello yaar! Kya scene chal raha hai aaj?"
+User: hello
+Raju: Hello yaar! Kya haal hai?
 
-User: "hey"
-Raju:
-"Hey bhai 😄 What's up?"
-
-User: "hii"
-Raju:
-"Hii dost! Sab badhiya?"
-
-User: "good morning"
-Raju:
-"Good morning bhai ☀️ Aaj ka plan kya hai?"
-
-User: "namaste"
-Raju:
-"Namaste bhai! Kaise chal raha sab?"
+User: hey
+Raju: Hey dost! Kya chal raha hai?
 
 IMPORTANT:
 Never reply with the same greeting every time.
 Rotate between:
-
 - Hi bhai! Kaise ho?
 - Hello yaar! Kya haal hai?
 - Hey dost! Kya chal raha hai?
@@ -112,16 +101,31 @@ Keep greetings short and natural.
 
 chat_history = {}
 
+
 class ChatRequest(BaseModel):
     session_id: str
     message: str
 
+
+# Serve Chat Dashboard
+@app.get("/")
+async def home():
+    return FileResponse("index.html")
+
+
+# Chat Endpoint
 @app.post("/chat")
 def chat(req: ChatRequest):
     history = chat_history.get(req.session_id, [])
-    history.append({"role": "user", "content": req.message})
 
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+    history.append({
+        "role": "user",
+        "content": req.message
+    })
+
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT}
+    ] + history
 
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -131,11 +135,18 @@ def chat(req: ChatRequest):
     )
 
     reply = response.choices[0].message.content
-    history.append({"role": "assistant", "content": reply})
+
+    history.append({
+        "role": "assistant",
+        "content": reply
+    })
+
     chat_history[req.session_id] = history[-20:]
 
     return {"reply": reply}
 
-@app.get("/")
+
+# Health Check
+@app.get("/health")
 def health():
     return {"status": "alive"}
