@@ -1,3 +1,4 @@
+# main.py - FIXED VERSION
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -15,9 +16,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Read API key from Render Environment Variables
+# ✅ FIXED: Correct os.getenv() usage
+# Set GROQ_API_KEY in Render Environment Variables dashboard
 client = Groq(
-    api_key=os.getenv("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")
+    api_key=os.getenv("GROQ_API_KEY")
 )
 
 SYSTEM_PROMPT = """
@@ -99,6 +101,9 @@ Rotate between:
 Keep greetings short and natural.
 """
 
+# In-memory store: { session_id: [messages] }
+# NOTE: This resets on every Render restart.
+# For persistent sessions, replace with Redis or a database.
 chat_history = {}
 
 
@@ -116,7 +121,13 @@ async def home():
 # Chat Endpoint
 @app.post("/chat")
 def chat(req: ChatRequest):
-    history = chat_history.get(req.session_id, [])
+    # ✅ Each unique session_id gets its own isolated history
+    session_id = req.session_id.strip()
+
+    if not session_id:
+        return {"error": "session_id is required"}
+
+    history = chat_history.get(session_id, [])
 
     history.append({
         "role": "user",
@@ -130,7 +141,7 @@ def chat(req: ChatRequest):
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=messages,
-        temperature=0.8,
+        temperature=0.9,   # Slightly higher = more varied replies
         max_tokens=300,
     )
 
@@ -141,7 +152,8 @@ def chat(req: ChatRequest):
         "content": reply
     })
 
-    chat_history[req.session_id] = history[-20:]
+    # Keep last 20 messages per user
+    chat_history[session_id] = history[-20:]
 
     return {"reply": reply}
 

@@ -88,7 +88,19 @@ Send
 
 <script>
 
-const sessionId = "user1";
+// ✅ FIX: Generate a unique session ID per browser
+// Stored in localStorage so it survives page refresh
+// Every user gets their own ID automatically — no login needed
+function getSessionId() {
+    let sessionId = localStorage.getItem("apna_dost_session_id");
+    if (!sessionId) {
+        sessionId = "sd_" + Math.random().toString(36).substring(2, 14);
+        localStorage.setItem("apna_dost_session_id", sessionId);
+    }
+    return sessionId;
+}
+
+const sessionId = getSessionId(); // e.g. "sd_a3f9b2c1d4e5"
 
 const BACKEND_URL =
 "https://my-chatbot-de5t.onrender.com";
@@ -132,7 +144,7 @@ headers:{
 "Content-Type":"application/json"
 },
 body:JSON.stringify({
-session_id:sessionId,
+session_id:sessionId, // ✅ now unique per browser
 message:text
 })
 }
