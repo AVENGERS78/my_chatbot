@@ -5,170 +5,267 @@
 <title>Apna Dost</title>
 
 <style>
-body{
-    font-family:sans-serif;
-    max-width:600px;
-    margin:30px auto;
-    background:#f0f2f5;
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
-h2{
-    text-align:center;
+body {
+    font-family: sans-serif;
+    max-width: 600px;
+    margin: 30px auto;
+    background: #f0f2f5;
+    padding: 0 10px;
 }
 
-#chatbox{
-    background:white;
-    height:500px;
-    overflow-y:auto;
-    padding:15px;
-    border-radius:10px;
-    border:1px solid #ddd;
+#header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-bottom: 12px;
 }
 
-.msg{
-    margin:10px 0;
-    padding:10px 14px;
-    border-radius:15px;
-    max-width:75%;
-    word-wrap:break-word;
+#header h2 {
+    text-align: center;
+    font-size: 22px;
 }
 
-.user{
-    background:#dcf8c6;
-    margin-left:auto;
-    text-align:right;
+#newChatBtn {
+    position: absolute;
+    right: 0;
+    padding: 7px 14px;
+    background: #ff5c5c;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
 }
 
-.bot{
-    background:#e6e6e6;
+#newChatBtn:hover {
+    background: #e04444;
 }
 
-#inputArea{
-    display:flex;
-    margin-top:10px;
+#chatbox {
+    background: white;
+    height: 500px;
+    overflow-y: auto;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #ddd;
 }
 
-#userInput{
-    flex:1;
-    padding:12px;
-    border-radius:20px;
-    border:1px solid #ccc;
+.msg {
+    margin: 10px 0;
+    padding: 10px 14px;
+    border-radius: 15px;
+    max-width: 75%;
+    word-wrap: break-word;
+    line-height: 1.4;
 }
 
-#sendBtn{
-    padding:12px 20px;
-    border:none;
-    background:#25d366;
-    color:white;
-    border-radius:20px;
-    margin-left:5px;
-    cursor:pointer;
+.user {
+    background: #dcf8c6;
+    margin-left: auto;
+    text-align: right;
+}
+
+.bot {
+    background: #e6e6e6;
+}
+
+.system-msg {
+    text-align: center;
+    color: #999;
+    font-size: 12px;
+    margin: 8px 0;
+    font-style: italic;
+}
+
+#inputArea {
+    display: flex;
+    margin-top: 10px;
+    gap: 8px;
+}
+
+#userInput {
+    flex: 1;
+    padding: 12px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+    outline: none;
+}
+
+#userInput:focus {
+    border-color: #25d366;
+}
+
+#sendBtn {
+    padding: 12px 20px;
+    border: none;
+    background: #25d366;
+    color: white;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+#sendBtn:hover {
+    background: #1ebe5d;
+}
+
+#sendBtn:disabled {
+    background: #aaa;
+    cursor: not-allowed;
 }
 </style>
 </head>
 
 <body>
 
-<h2>🤖 Apna Dost</h2>
+<div id="header">
+    <h2>🤖 Apna Dost</h2>
+    <!-- ✅ New Chat button — clears history and starts fresh -->
+    <button id="newChatBtn" onclick="startNewChat()">+ New Chat</button>
+</div>
 
 <div id="chatbox"></div>
 
 <div id="inputArea">
-<input
-id="userInput"
-type="text"
-placeholder="Kuch bol bhai..."
-onkeydown="if(event.key==='Enter') sendMessage()"
-/>
-
-<button id="sendBtn" onclick="sendMessage()">
-Send
-</button>
+    <input
+        id="userInput"
+        type="text"
+        placeholder="Kuch bol bhai..."
+        onkeydown="if(event.key==='Enter') sendMessage()"
+    />
+    <button id="sendBtn" onclick="sendMessage()">Send</button>
 </div>
 
 <script>
 
-// ✅ FIX: Generate a unique session ID per browser
-// Stored in localStorage so it survives page refresh
-// Every user gets their own ID automatically — no login needed
+const BACKEND_URL = "https://my-chatbot-de5t.onrender.com";
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SESSION MANAGEMENT
+// Each browser gets its own unique ID stored in localStorage.
+// New Chat button generates a brand new ID → fresh history.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function generateSessionId() {
+    return "sd_" + Math.random().toString(36).substring(2, 14);
+}
+
 function getSessionId() {
     let sessionId = localStorage.getItem("apna_dost_session_id");
     if (!sessionId) {
-        sessionId = "sd_" + Math.random().toString(36).substring(2, 14);
+        sessionId = generateSessionId();
         localStorage.setItem("apna_dost_session_id", sessionId);
     }
     return sessionId;
 }
 
-const sessionId = getSessionId(); // e.g. "sd_a3f9b2c1d4e5"
+// Current active session
+let sessionId = getSessionId();
 
-const BACKEND_URL =
-"https://my-chatbot-de5t.onrender.com";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// NEW CHAT — wipes server history + generates fresh session
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+async function startNewChat() {
+    // 1. Tell server to delete this session's history
+    try {
+        await fetch(BACKEND_URL + "/clear", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: sessionId })
+        });
+    } catch (e) {
+        console.warn("Could not clear server history:", e);
+    }
+
+    // 2. Generate a brand new session ID
+    sessionId = generateSessionId();
+    localStorage.setItem("apna_dost_session_id", sessionId);
+
+    // 3. Clear the chat UI
+    const chatbox = document.getElementById("chatbox");
+    chatbox.innerHTML = "";
+
+    // 4. Show a system message
+    addSystemMessage("New chat started. Raju is ready! 👋");
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CHAT UI FUNCTIONS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const chatbox = document.getElementById("chatbox");
 
-function addMessage(text,sender){
-
-const div=document.createElement("div");
-
-div.className="msg "+sender;
-
-div.innerText=text;
-
-chatbox.appendChild(div);
-
-chatbox.scrollTop=chatbox.scrollHeight;
+function addMessage(text, sender) {
+    const div = document.createElement("div");
+    div.className = "msg " + sender;
+    div.innerText = text;
+    chatbox.appendChild(div);
+    chatbox.scrollTop = chatbox.scrollHeight;
 }
 
-async function sendMessage(){
-
-const input=document.getElementById("userInput");
-
-const text=input.value.trim();
-
-if(!text) return;
-
-addMessage(text,"user");
-
-input.value="";
-
-addMessage("Typing...","bot");
-
-try{
-
-const response=await fetch(
-BACKEND_URL+"/chat",
-{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-body:JSON.stringify({
-session_id:sessionId, // ✅ now unique per browser
-message:text
-})
+function addSystemMessage(text) {
+    const div = document.createElement("div");
+    div.className = "system-msg";
+    div.innerText = text;
+    chatbox.appendChild(div);
+    chatbox.scrollTop = chatbox.scrollHeight;
 }
-);
 
-const data=await response.json();
+async function sendMessage() {
+    const input = document.getElementById("userInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const text = input.value.trim();
 
-chatbox.removeChild(chatbox.lastChild);
+    if (!text) return;
 
-addMessage(data.reply,"bot");
+    addMessage(text, "user");
+    input.value = "";
 
-}
-catch(error){
+    // Disable input while waiting
+    input.disabled = true;
+    sendBtn.disabled = true;
 
-chatbox.removeChild(chatbox.lastChild);
+    const typingDiv = document.createElement("div");
+    typingDiv.className = "msg bot";
+    typingDiv.innerText = "Typing...";
+    chatbox.appendChild(typingDiv);
+    chatbox.scrollTop = chatbox.scrollHeight;
 
-addMessage(
-"Backend connection failed",
-"bot"
-);
+    try {
+        const response = await fetch(BACKEND_URL + "/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                session_id: sessionId,  // ✅ unique per browser
+                message: text
+            })
+        });
 
-console.error(error);
+        const data = await response.json();
+        chatbox.removeChild(typingDiv);
+        addMessage(data.reply, "bot");
 
-}
+    } catch (error) {
+        chatbox.removeChild(typingDiv);
+        addMessage("Backend se connect nahi ho paya. Try again!", "bot");
+        console.error(error);
+    }
+
+    // Re-enable input
+    input.disabled = false;
+    sendBtn.disabled = false;
+    input.focus();
 }
 </script>
 
