@@ -24,6 +24,10 @@ genai.configure(
     api_key=os.getenv("GEMINI_API_KEY")
 )
 
+# Debug logs
+print("Groq key exists:", bool(os.getenv("GROQ_API_KEY")))
+print("Gemini key exists:", bool(os.getenv("GEMINI_API_KEY")))
+
 gemini_model = genai.GenerativeModel("gemini-2.0-flash")
 
 
