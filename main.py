@@ -408,7 +408,6 @@ def chat(req: ChatRequest):
     if not session_id:
         return {"error": "session_id is required"}
 
-    # ✅ New session_id = always starts with empty history
     history = chat_history.get(session_id, [])
 
     history.append({
@@ -420,15 +419,24 @@ def chat(req: ChatRequest):
         {"role": "system", "content": SYSTEM_PROMPT}
     ] + history
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-        temperature=0.9,
-        max_tokens=300,
-    )
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            temperature=0.9,
+            max_tokens=300,
+        )
+
+    except Exception:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=messages,
+            temperature=0.9,
+            max_tokens=300,
+        )
 
     reply = response.choices[0].message.content
-
+    
     history.append({
         "role": "assistant",
         "content": reply
