@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+import google.generativeai as genai
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,13 @@ app.add_middleware(
 client = Groq(
     api_key=os.getenv("GROQ_API_KEY")
 )
+
+genai.configure(
+    api_key=os.getenv("GEMINI_API_KEY")
+)
+
+gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+
 
 SYSTEM_PROMPT = """
 You are Raju.
@@ -383,6 +391,7 @@ Assistant: Nice to meet you, Priya! Kaise ho?
 User: bot hu
 Assistant: Haha, phir toh hum dono chat buddies hue!
 """
+
 # In-memory session store: { session_id: [messages] }
 chat_history = {}
 
@@ -419,23 +428,61 @@ def chat(req: ChatRequest):
         {"role": "system", "content": SYSTEM_PROMPT}
     ] + history
 
+    reply = None
+
+    # ---------- TRY GROQ FIRST ----------
     try:
+        print("Using GROQ")
+
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
-            temperature=0.7,
-            max_tokens=200,
+            temperature=0.9,
+            max_tokens=150,
         )
 
-    except Exception:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=200,
-        )
+        reply = response.choices[0].message.content
 
-    reply = response.choices[0].message.content
+        print("GROQ SUCCESS")
+
+    except Exception as groq_error:
+
+        print("GROQ FAILED")
+        print(str(groq_error))
+
+        # ---------- FALLBACK TO GEMINI ----------
+        try:
+
+            print("Switching to GEMINI")
+
+            conversation = SYSTEM_PROMPT + "\n\n"
+
+            for msg in history:
+                role = msg["role"]
+                content = msg["content"]
+
+                if role == "user":
+                    conversation += f"User: {content}\n"
+                else:
+                    conversation += f"Assistant: {content}\n"
+
+            gemini_response = gemini_model.generate_content(
+                conversation
+            )
+
+            reply = gemini_response.text
+
+            print("GEMINI SUCCESS")
+
+        except Exception as gemini_error:
+
+            print("GEMINI FAILED")
+            print(str(gemini_error))
+
+            reply = (
+                "Sorry yaar 😔. Both AI services are currently unavailable. "
+                "Please try again in a few minutes."
+            )
 
     history.append({
         "role": "assistant",
